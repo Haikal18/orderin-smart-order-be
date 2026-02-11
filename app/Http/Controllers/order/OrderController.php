@@ -339,4 +339,35 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    public function generateReceipt($id)
+    {
+        $order = Order::with([
+            'table:id,table_number',
+            'user:id,name',
+            'orderItems.food:id,name,price'
+        ])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        if ($order->status !== 'closed') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order must be closed to generate receipt'
+            ], 400);
+        }
+
+        // Generate PDF using dompdf
+        $pdf = \PDF::loadView('receipts.receipt', [
+            'order' => $order
+        ]);
+
+        // Stream PDF (tidak disimpan ke disk)
+        return $pdf->stream('receipt-' . $order->order_number . '.pdf');
+    }
 }
