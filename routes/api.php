@@ -28,6 +28,7 @@ Route::prefix('v1')->group(function () {
 
         // Order routes - accessible by pelayan and kasir
         Route::middleware('role:pelayan,kasir')->group(function () {
+            Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{id}', [OrderController::class, 'show']);
             Route::post('/orders/{id}/close', [OrderController::class, 'closeOrder']);
         });

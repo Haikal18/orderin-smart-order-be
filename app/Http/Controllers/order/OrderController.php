@@ -13,15 +13,64 @@ use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
-    /**
-     * Open a new order for a table.
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+    public function index(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'nullable|in:open,closed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $query = Order::with('table:id,table_number');
+
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $query->latest();
+
+        $orders = $query->paginate(15);
+
+        $transformedData = $orders->map(function ($order) {
+            return [
+                'id' => $order->id,
+                'table_number' => $order->table->table_number,
+                'total_price' => $order->total_amount,
+                'status' => $order->status,
+                'opened_at' => $order->opened_at,
+                'closed_at' => $order->closed_at,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Orders retrieved successfully',
+            'data' => $transformedData,
+            'meta' => [
+                'current_page' => $orders->currentPage(),
+                'per_page' => $orders->perPage(),
+                'total' => $orders->total(),
+                'last_page' => $orders->lastPage(),
+                'from' => $orders->firstItem(),
+                'to' => $orders->lastItem(),
+            ],
+            'links' => [
+                'first' => $orders->url(1),
+                'last' => $orders->url($orders->lastPage()),
+                'prev' => $orders->previousPageUrl(),
+                'next' => $orders->nextPageUrl(),
+            ]
+        ], 200);
+    }
+
     public function open(Request $request)
     {
-        // Validate request
         $validator = Validator::make($request->all(), [
             'table_id' => 'required|integer|exists:tables,id',
         ]);
