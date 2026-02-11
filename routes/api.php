@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\food\FoodController;
+use App\Http\Controllers\order\OrderController;
 use App\Http\Controllers\table\TableController;
 
 Route::prefix('v1')->group(function () {
@@ -23,6 +24,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/foods', [FoodController::class, 'store']);
             Route::match(['put', 'post'], '/foods/{id}', [FoodController::class, 'update']);
             Route::delete('/foods/{id}', [FoodController::class, 'destroy']);
+        });
+
+        // Order routes - accessible by pelayan only
+        Route::middleware('role:pelayan')->group(function () {
+            Route::post('/orders/open', [OrderController::class, 'open']);
         });
     });
 });
