@@ -229,4 +229,65 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    public function closeOrder($orderId)
+    {
+        $order = Order::with(['orderItems', 'table'])->find($orderId);
+
+        if (!$order) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        if ($order->status !== 'open') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order is already closed'
+            ], 400);
+        }
+
+        if ($order->orderItems->isEmpty()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot close order with no items'
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->calculateTotal();
+            $order->close();
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Order closed successfully',
+                'data' => [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'status' => $order->status,
+                    'total_amount' => $order->total_amount,
+                    'opened_at' => $order->opened_at,
+                    'closed_at' => $order->closed_at,
+                    'table' => [
+                        'id' => $order->table->id,
+                        'table_number' => $order->table->table_number,
+                        'status' => 'available',
+                    ],
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to close order: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
