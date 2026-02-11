@@ -9,31 +9,19 @@ class Food extends Model
 {
     use HasFactory;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
     protected $table = 'foods';
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+
     protected $fillable = [
         'name',
         'category',
         'price',
         'is_available',
         'description',
+        'image_url',
+        'image_id',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -42,25 +30,17 @@ class Food extends Model
         ];
     }
 
-    /**
-     * Get all order items for this food.
-     */
+
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    /**
-     * Scope a query to only include available foods.
-     */
     public function scopeAvailable($query)
     {
         return $query->where('is_available', true);
     }
 
-    /**
-     * Scope a query to only include foods by category.
-     */
     public function scopeByCategory($query, string $category)
     {
         return $query->where('category', $category);
