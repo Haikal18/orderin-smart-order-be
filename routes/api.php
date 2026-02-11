@@ -30,6 +30,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:pelayan,kasir')->group(function () {
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{id}', [OrderController::class, 'show']);
+            Route::get('/orders/{id}/receipt', [OrderController::class, 'generateReceipt']);
             Route::post('/orders/{id}/close', [OrderController::class, 'closeOrder']);
         });
 
