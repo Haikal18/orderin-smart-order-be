@@ -85,4 +85,60 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    public function show($id)
+    {
+        $order = Order::with([
+            'table:id,table_number,capacity,status',
+            'user:id,name,email,role',
+            'orderItems.food:id,name,category,price,image_url'
+        ])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Order retrieved successfully',
+            'data' => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'status' => $order->status,
+                'total_amount' => $order->total_amount,
+                'opened_at' => $order->opened_at,
+                'closed_at' => $order->closed_at,
+                'table' => [
+                    'id' => $order->table->id,
+                    'table_number' => $order->table->table_number,
+                    'capacity' => $order->table->capacity,
+                    'status' => $order->table->status,
+                ],
+                'pelayan' => [
+                    'id' => $order->user->id,
+                    'name' => $order->user->name,
+                ],
+                'items' => $order->orderItems->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'food_id' => $item->food_id,
+                        'food_name' => $item->food->name,
+                        'category' => $item->food->category,
+                        'image_url' => $item->food->image_url,
+                        'quantity' => $item->quantity,
+                        'price' => $item->price,
+                        'subtotal' => $item->subtotal,
+                        'notes' => $item->notes,
+                    ];
+                }),
+                'summary' => [
+                    'total_items' => $order->orderItems->sum('quantity'),
+                    'total_amount' => $order->total_amount,
+                ],
+            ]
+        ], 200);
+    }
 }
