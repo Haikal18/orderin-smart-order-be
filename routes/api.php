@@ -34,6 +34,7 @@ Route::prefix('v1')->group(function () {
         // Order routes - accessible by pelayan only
         Route::middleware('role:pelayan')->group(function () {
             Route::post('/orders/open', [OrderController::class, 'open']);
+            Route::post('/orders/{order_id}/items', [OrderController::class, 'addItem']);
         });
     });
 });
