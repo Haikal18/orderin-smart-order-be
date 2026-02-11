@@ -26,6 +26,11 @@ Route::prefix('v1')->group(function () {
             Route::delete('/foods/{id}', [FoodController::class, 'destroy']);
         });
 
+        // Order routes - accessible by pelayan and kasir
+        Route::middleware('role:pelayan,kasir')->group(function () {
+            Route::get('/orders/{id}', [OrderController::class, 'show']);
+        });
+
         // Order routes - accessible by pelayan only
         Route::middleware('role:pelayan')->group(function () {
             Route::post('/orders/open', [OrderController::class, 'open']);
