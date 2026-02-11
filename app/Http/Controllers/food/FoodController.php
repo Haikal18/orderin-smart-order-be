@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\food;
 
+use App\Http\Controllers\Controller;
 use App\Models\Food;
 use App\Services\ImageKitService;
 use Illuminate\Http\Request;
