@@ -105,16 +105,26 @@ jobs:
         uses: actions/checkout@v4
 
       # 1.5 Check if host port 80 is free on the self-hosted runner
-      - name: ⚠️ Check host-port availability
+      - name: ⚠️ Ensure host-port availability (stop existing orderin if needed)
         run: |
           echo "Checking if host port $HOST_PORT is available on runner..."
           if ss -tuln | grep -q ":${HOST_PORT}\b"; then
-            echo "Port $HOST_PORT is already in use on the runner:" >&2
-            ss -tuln | grep ":${HOST_PORT}\b" >&2 || true
-            echo "Aborting deployment — free port $HOST_PORT or change HOST_PORT in docker-compose.yml" >&2
-            exit 1
+            echo "Port ${HOST_PORT} is in use. Verifying running containers..."
+
+            # if the port is used by an existing orderin-nginx container, stop & remove it so deployment can continue
+            if docker ps --filter "name=orderin-nginx" --format '{{.ID}}' | grep -q .; then
+              echo "Found existing 'orderin-nginx' container — stopping and removing it..."
+              docker stop orderin-nginx || true
+              docker rm orderin-nginx || true
+              echo "Stopped existing orderin containers and freed port ${HOST_PORT}."
+            else
+              echo "Port ${HOST_PORT} is used by a different process — aborting deployment." >&2
+              ss -tuln | grep ":${HOST_PORT}\b" >&2 || true
+              exit 1
+            fi
+          else
+            echo "Port ${HOST_PORT} is free. Proceeding..."
           fi
-          echo "Port $HOST_PORT is free. Proceeding..."
 
       # 2. Login to GHCR untuk pull image
       - name: 🔐 Login to GHCR
