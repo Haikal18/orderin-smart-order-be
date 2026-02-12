@@ -1,0 +1,80 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - stagging
+
+jobs:
+  deploy:
+    name: Deploy Laravel Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to project directory
+            cd /var/www/orderin
+            
+            # Pull latest changes from repository
+            git pull origin stagging
+            
+            # Create .env file from secrets
+            cat > .env << EOF
+            APP_KEY=${{ secrets.APP_KEY }}
+            APP_ENV=${{ secrets.APP_ENV }}
+            APP_DEBUG=${{ secrets.APP_DEBUG }}
+            APP_URL=${{ secrets.APP_URL }}
+            
+            LOG_CHANNEL=stack
+            LOG_DEPRECATIONS_CHANNEL=null
+            LOG_LEVEL=debug
+            
+            DB_CONNECTION=${{ secrets.DB_CONNECTION }}
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            
+            BROADCAST_DRIVER=log
+            CACHE_DRIVER=file
+            FILESYSTEM_DISK=local
+            QUEUE_CONNECTION=sync
+            SESSION_DRIVER=file
+            SESSION_LIFETIME=120
+            
+            IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+            IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+            IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
+            EOF
+            
+            # Stop running containers
+            docker compose down
+            
+            # Build and start containers
+            docker compose up -d --build
+            
+            # Wait for containers to be ready
+            sleep 10
+            
+            # Run migrations (optional - comment out if not needed)
+            docker compose exec -T app php artisan migrate --force
+            
+            # Clear and cache configurations
+            docker compose exec -T app php artisan config:cache
+            docker compose exec -T app php artisan route:cache
+            docker compose exec -T app php artisan view:cache
+            
+            # Show running containers
+            docker compose ps
+            
+            echo "Deployment completed successfully!"

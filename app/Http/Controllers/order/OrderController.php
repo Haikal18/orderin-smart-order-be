@@ -478,7 +478,6 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // ✅ FIX: Check for draft items and block closing
         $draftItems = $order->orderItems->where('status', 'draft');
         if ($draftItems->isNotEmpty()) {
             return response()->json([
@@ -494,7 +493,6 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // Validate cash input (uang pelanggan) - required when closing an order
         $validator = Validator::make(request()->all(), [
             'cash' => 'required|numeric|min:0',
         ]);
@@ -513,15 +511,12 @@ class OrderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Force calculate total one more time before closing
             $order->calculateTotal();
             
-            // If total is still 0, force calculate with all items (debugging)
             if ($order->total_amount == 0) {
                 $order->forceCalculateTotal();
             }
 
-            // Ensure customer provided enough cash
             if ($cash < $order->total_amount) {
                 DB::rollBack();
 
@@ -533,7 +528,6 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            // Save cash and change into the order record then close
             $order->cash_received = $cash;
             $order->change_given = $cash - $order->total_amount;
 
@@ -593,7 +587,6 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // ✅ FIX: Consolidate items with same food_id (fixed array reference bug)
         $consolidatedItems = [];
         
         foreach ($order->orderItems->where('status', 'sent') as $item) {
@@ -601,11 +594,11 @@ class OrderController extends Controller
             $foodName = $item->food ? $item->food->name : 'Unknown Food';
             
             if (isset($consolidatedItems[$foodId])) {
-                // Combine quantities and recalculate subtotal
+
                 $consolidatedItems[$foodId]['quantity'] += $item->quantity;
                 $consolidatedItems[$foodId]['subtotal'] = $consolidatedItems[$foodId]['quantity'] * $consolidatedItems[$foodId]['price'];
             } else {
-                // Add new item
+       
                 $consolidatedItems[$foodId] = [
                     'food_id' => $item->food_id,
                     'food_name' => $foodName,
@@ -616,17 +609,15 @@ class OrderController extends Controller
             }
         }
 
-        // Convert to indexed array for easier iteration in view
+       
         $consolidatedItems = array_values($consolidatedItems);
 
-        // Debug: Check if we have any items
         if (empty($consolidatedItems)) {
-            // Fallback: use all items regardless of status for debugging
             $consolidatedItems = [];
             foreach ($order->orderItems as $item) {
                 $foodId = $item->food_id;
                 $foodName = $item->food ? $item->food->name : 'Unknown Food';
-                
+
                 if (isset($consolidatedItems[$foodId])) {
                     $consolidatedItems[$foodId]['quantity'] += $item->quantity;
                     $consolidatedItems[$foodId]['subtotal'] = $consolidatedItems[$foodId]['quantity'] * $consolidatedItems[$foodId]['price'];
@@ -641,21 +632,18 @@ class OrderController extends Controller
                 }
             }
             $consolidatedItems = array_values($consolidatedItems);
-            
-            // If total is still 0, recalculate it for display
-            if ($order->total_amount == 0) {
-                $calculatedTotal = array_sum(array_column($consolidatedItems, 'subtotal'));
-                $order->total_amount = $calculatedTotal; // Just for display, don't save
-            }
         }
 
-        // Generate PDF using dompdf
+        if ($order->total_amount == 0) {
+            $calculatedTotal = array_sum(array_column($consolidatedItems, 'subtotal'));
+            $order->total_amount = $calculatedTotal;
+        }
+
         $pdf = \PDF::loadView('receipts.receipt', [
             'order' => $order,
             'consolidatedItems' => $consolidatedItems
         ]);
 
-        // Stream PDF (tidak disimpan ke disk)
         return $pdf->stream('receipt-' . $order->order_number . '.pdf');
     }
 

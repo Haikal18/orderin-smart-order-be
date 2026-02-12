@@ -21,13 +21,13 @@ class UserSeeder extends Seeder
                 'role' => 'pelayan',
             ],
             [
-                'name' => 'Siti Pelayan',
+                'name' => 'Nami Pelayan',
                 'email' => 'pelayan2@orderin.com',
                 'password' => Hash::make('password'),
                 'role' => 'pelayan',
             ],
             [
-                'name' => 'Andi Kasir',
+                'name' => 'Naruto Kasir',
                 'email' => 'kasir@orderin.com',
                 'password' => Hash::make('password'),
                 'role' => 'kasir',
