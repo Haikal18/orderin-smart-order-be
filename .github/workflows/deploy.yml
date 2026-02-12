@@ -1,80 +1,188 @@
-name: Deploy to Production
+name: CI/CD Pipeline Laravel API
 
 on:
   push:
-    branches:
-      - stagging
+    branches: ["stagging", "main"]
+  pull_request:
+    branches: ["stagging", "main"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CONTAINER_NAME: orderin-app
+  HOST_PORT: 80
 
 jobs:
-  deploy:
-    name: Deploy Laravel Application
+  # Job 1: Build dan Push Image
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-
+    outputs:
+      image-name: ${{ steps.lowercase.outputs.image }}
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      # 0. Convert repository name to lowercase
+      - name: 🔤 Convert repository name to lowercase
+        id: lowercase
+        run: |
+          echo "image=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+      
+      # 1. Checkout kode dari repository
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v1.0.0
+      # 2. Set up Docker Buildx
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. Login ke GitHub Container Registry
+      - name: 🔐 Login to GHCR
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # Navigate to project directory
-            cd /var/www/orderin
-            
-            # Pull latest changes from repository
-            git pull origin stagging
-            
-            # Create .env file from secrets
-            cat > .env << EOF
-            APP_KEY=${{ secrets.APP_KEY }}
-            APP_ENV=${{ secrets.APP_ENV }}
-            APP_DEBUG=${{ secrets.APP_DEBUG }}
-            APP_URL=${{ secrets.APP_URL }}
-            
-            LOG_CHANNEL=stack
-            LOG_DEPRECATIONS_CHANNEL=null
-            LOG_LEVEL=debug
-            
-            DB_CONNECTION=${{ secrets.DB_CONNECTION }}
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            DB_DATABASE=${{ secrets.DB_DATABASE }}
-            DB_USERNAME=${{ secrets.DB_USERNAME }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            
-            BROADCAST_DRIVER=log
-            CACHE_DRIVER=file
-            FILESYSTEM_DISK=local
-            QUEUE_CONNECTION=sync
-            SESSION_DRIVER=file
-            SESSION_LIFETIME=120
-            
-            IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
-            IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
-            IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
-            EOF
-            
-            # Stop running containers
-            docker compose down
-            
-            # Build and start containers
-            docker compose up -d --build
-            
-            # Wait for containers to be ready
-            sleep 10
-            
-            # Run migrations (optional - comment out if not needed)
-            docker compose exec -T app php artisan migrate --force
-            
-            # Clear and cache configurations
-            docker compose exec -T app php artisan config:cache
-            docker compose exec -T app php artisan route:cache
-            docker compose exec -T app php artisan view:cache
-            
-            # Show running containers
-            docker compose ps
-            
-            echo "Deployment completed successfully!"
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Extract metadata (tags, labels) for Docker
+      - name: 🏷️ Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=
+            type=ref,event=branch
+          flavor: |
+            latest=auto
+
+      # 5. Build and push Docker image
+      - name: 🏗️ Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: false
+
+      # 6. Output image info
+      - name: 📊 Output image information
+        run: |
+          echo "### 🚀 Docker Image Published!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.lowercase.outputs.image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 2: Deploy ke Self-Hosted Runner
+  deploy-to-server:
+    name: Deploy to Self-Hosted Server
+    needs: build-and-push
+    runs-on: self-hosted
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/stagging' || github.ref == 'refs/heads/main')
+    
+    steps:
+      # 1. Checkout repository untuk akses docker-compose.yml
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Login to GHCR untuk pull image
+      - name: 🔐 Login to GHCR
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      # 3. Pull latest image from GHCR
+      - name: 🔄 Pull latest image from GHCR
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:latest
+
+      # 4. Deploy menggunakan docker-compose
+      - name: 🚀 Deploy with docker-compose
+        env:
+          DOCKER_IMAGE: ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:latest
+          APP_KEY: ${{ secrets.APP_KEY }}
+          APP_ENV: ${{ secrets.APP_ENV }}
+          APP_DEBUG: ${{ secrets.APP_DEBUG }}
+          APP_URL: ${{ secrets.APP_URL }}
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          IMAGEKIT_PUBLIC_KEY: ${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+          IMAGEKIT_PRIVATE_KEY: ${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+          IMAGEKIT_URL_ENDPOINT: ${{ secrets.IMAGEKIT_URL_ENDPOINT }}
+        run: |
+          docker compose down || true
+          docker compose up -d
+
+      # 5. Wait for container to be healthy
+      - name: ⏳ Wait for container to be ready
+        run: |
+          echo "Waiting for containers to start..."
+          sleep 10
+          
+          # Check if containers are running
+          if [ $(docker ps -q -f name=orderin-app) ]; then
+            echo "✅ App container is running!"
+          else
+            echo "❌ App container failed to start!"
+            docker logs orderin-app
+            exit 1
+          fi
+          
+          if [ $(docker ps -q -f name=orderin-nginx) ]; then
+            echo "✅ Nginx container is running!"
+          else
+            echo "❌ Nginx container failed to start!"
+            docker logs orderin-nginx
+            exit 1
+          fi
+
+      # 6. Run database migrations
+      - name: 🗄️ Run database migrations
+        run: |
+          docker compose exec -T app php artisan migrate --force
+
+      # 7. Clear and optimize caches
+      - name: 🔄 Clear and optimize caches
+        run: |
+          docker compose exec -T app php artisan config:cache
+          docker compose exec -T app php artisan route:cache
+          docker compose exec -T app php artisan view:cache
+
+      # 8. Verify deployment
+      - name: ✅ Verify deployment
+        run: |
+          echo "### ✨ Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Container Status:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker ps -f name=orderin --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      # 9. Cleanup old images
+      - name: 🧹 Cleanup old images
+        run: |
+          echo "Removing unused images..."
+          docker image prune -f

@@ -1,19 +1,22 @@
+# Local Development - Buat docker-compose.local.yml
 version: '3.8'
 
 services:
   app:
-    image: ${DOCKER_IMAGE:-ghcr.io/your-username/orderin:latest}
-    container_name: orderin-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orderin-app-local
     restart: unless-stopped
     working_dir: /var/www/html
     environment:
       - APP_KEY=${APP_KEY}
-      - APP_ENV=${APP_ENV}
-      - APP_DEBUG=${APP_DEBUG}
-      - APP_URL=${APP_URL:-http://localhost}
-      - DB_CONNECTION=${DB_CONNECTION}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=http://localhost
+      - DB_CONNECTION=mysql
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-3306}
       - DB_DATABASE=${DB_DATABASE}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -21,16 +24,16 @@ services:
       - IMAGEKIT_PRIVATE_KEY=${IMAGEKIT_PRIVATE_KEY}
       - IMAGEKIT_URL_ENDPOINT=${IMAGEKIT_URL_ENDPOINT}
     volumes:
-      - storage:/var/www/html/storage
+      - ./:/var/www/html
     networks:
       - orderin-network
 
   nginx:
     image: nginx:alpine
-    container_name: orderin-nginx
+    container_name: orderin-nginx-local
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./:/var/www/html
       - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
@@ -42,7 +45,3 @@ services:
 networks:
   orderin-network:
     driver: bridge
-
-volumes:
-  storage:
-    driver: local
