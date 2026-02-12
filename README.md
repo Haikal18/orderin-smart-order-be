@@ -5,7 +5,7 @@ Laravel-based REST API untuk sistem pemesanan restoran dengan Docker deployment 
 ## 🚀 Tech Stack
 
 - **Backend:** Laravel 11.x
-- **PHP:** 8.2 FPM
+- **PHP:** 8.4 FPM
 - **Web Server:** Nginx
 - **Database:** MySQL (External Container/Server)
 - **Storage:** ImageKit
@@ -33,7 +33,7 @@ orderin/
 │   └── api.php
 ├── docker-compose.yml          # Production (GHCR image)
 ├── docker-compose.local.yml    # Local development
-├── Dockerfile                  # PHP 8.2 FPM image
+├── Dockerfile                  # PHP 8.4 FPM image
 ├── SETUP-RUNNER.md            # Self-hosted runner guide
 └── README.md
 ```
