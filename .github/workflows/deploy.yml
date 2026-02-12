@@ -2,9 +2,9 @@ name: CI/CD Pipeline Laravel API
 
 on:
   push:
-    branches: ["stagging", "main"]
+    branches: ["stagging"]
   pull_request:
-    branches: ["stagging", "main"]
+    branches: ["stagging"]
 
 permissions:
   contents: read
@@ -14,7 +14,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   CONTAINER_NAME: orderin-app
-  HOST_PORT: 80
+  HOST_PORT: 9090
 
 jobs:
   # Job 1: Build dan Push Image
@@ -71,7 +71,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           provenance: false
 
       # 6. Output image info
@@ -97,12 +97,24 @@ jobs:
     name: Deploy to Self-Hosted Server
     needs: build-and-push
     runs-on: self-hosted
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/stagging' || github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/stagging'
     
     steps:
       # 1. Checkout repository untuk akses docker-compose.yml
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+
+      # 1.5 Check if host port 80 is free on the self-hosted runner
+      - name: ⚠️ Check host-port availability
+        run: |
+          echo "Checking if host port $HOST_PORT is available on runner..."
+          if ss -tuln | grep -q ":${HOST_PORT}\b"; then
+            echo "Port $HOST_PORT is already in use on the runner:" >&2
+            ss -tuln | grep ":${HOST_PORT}\b" >&2 || true
+            echo "Aborting deployment — free port $HOST_PORT or change HOST_PORT in docker-compose.yml" >&2
+            exit 1
+          fi
+          echo "Port $HOST_PORT is free. Proceeding..."
 
       # 2. Login to GHCR untuk pull image
       - name: 🔐 Login to GHCR
@@ -110,14 +122,14 @@ jobs:
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
       # 3. Pull latest image from GHCR
-      - name: 🔄 Pull latest image from GHCR
+      - name: 🔄 Pull stagging image from GHCR
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:latest
+          docker pull ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:stagging
 
       # 4. Deploy menggunakan docker-compose
       - name: 🚀 Deploy with docker-compose
         env:
-          DOCKER_IMAGE: ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:latest
+          DOCKER_IMAGE: ${{ env.REGISTRY }}/${{ needs.build-and-push.outputs.image-name }}:stagging
           APP_KEY: ${{ secrets.APP_KEY }}
           APP_ENV: ${{ secrets.APP_ENV }}
           APP_DEBUG: ${{ secrets.APP_DEBUG }}
