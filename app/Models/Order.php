@@ -21,6 +21,8 @@ class Order extends Model
         'user_id',
         'status',
         'total_amount',
+        'cash_received',
+        'change_given',
         'opened_at',
         'closed_at',
     ];
@@ -34,6 +36,8 @@ class Order extends Model
     {
         return [
             'total_amount' => 'decimal:2',
+            'cash_received' => 'decimal:2',
+            'change_given' => 'decimal:2',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
@@ -96,6 +100,16 @@ class Order extends Model
      * Calculate and update total amount.
      */
     public function calculateTotal(): void
+    {
+        // Only consider items that have been sent to kitchen when computing total
+        $this->total_amount = $this->orderItems()->where('status', 'sent')->sum('subtotal');
+        $this->save();
+    }
+
+    /**
+     * Force recalculate total (including all items regardless of status) - for debugging
+     */
+    public function forceCalculateTotal(): void
     {
         $this->total_amount = $this->orderItems()->sum('subtotal');
         $this->save();

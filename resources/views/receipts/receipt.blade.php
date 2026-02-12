@@ -150,22 +150,40 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($order->orderItems as $item)
-                <tr>
-                    <td>{{ $item->food->name }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-right">Rp {{ number_format($item->price, 0, ',', '.') }}</td>
-                    <td class="text-right">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
-                </tr>
-                @endforeach
+                @if(empty($consolidatedItems) || count($consolidatedItems) == 0)
+                    <tr>
+                        <td colspan="4" style="text-align: center; font-style: italic;">
+                            No items found. Total items in order: {{ $order->orderItems->count() }}
+                        </td>
+                    </tr>
+                @else
+                    @foreach($consolidatedItems as $item)
+                    <tr>
+                        <td>{{ $item['food_name'] }}</td>
+                        <td class="text-center">{{ $item['quantity'] }}</td>
+                        <td class="text-right">Rp {{ number_format($item['price'], 0, ',', '.') }}</td>
+                        <td class="text-right">Rp {{ number_format($item['subtotal'], 0, ',', '.') }}</td>
+                    </tr>
+                    @endforeach
+                @endif
             </tbody>
         </table>
         
         <!-- Total Section -->
         <div class="total-section">
+            <div class="total-row">
+                <span>Uang Pelanggan:</span>
+                <span>Rp {{ number_format($order->cash_received ?? 0, 0, ',', '.') }}</span>
+            </div>
+
             <div class="total-row grand-total">
                 <span>TOTAL:</span>
                 <span>Rp {{ number_format($order->total_amount, 0, ',', '.') }}</span>
+            </div>
+
+            <div class="total-row">
+                <span>Kembalian:</span>
+                <span>Rp {{ number_format($order->change_given ?? 0, 0, ',', '.') }}</span>
             </div>
         </div>
         
