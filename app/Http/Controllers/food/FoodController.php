@@ -25,21 +25,28 @@ class FoodController extends Controller
             $query->where('category', $request->category);
         }
 
-
         if ($request->has('is_available')) {
             $query->where('is_available', $request->is_available);
         }
-
 
         if ($request->has('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
 
-        $foods = $query->orderBy('created_at', 'desc')->get();
+        $perPage = (int) $request->get('per_page', 10);
+        $perPage = $perPage > 0 ? min($perPage, 100) : 10;
+
+        $paginator = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $foods
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+            ]
         ], 200);
     }
 
