@@ -4,20 +4,21 @@ namespace App\Http\Controllers\table;
 
 use App\Http\Controllers\Controller;
 use App\Models\Table;
+use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class TableController extends Controller
 {
-    /**
-     * Display a listing of tables.
-     *
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $tables = Table::select('id', 'table_number', 'status')
-            ->orderBy('table_number')
-            ->get();
+        $query = Table::select('id', 'table_number', 'status')
+            ->orderBy('table_number');
+
+        if ($request->has('search')) {
+            $query->where('table_number', 'like', '%' . $request->search . '%');
+        }
+
+        $tables = $query->get();
 
         return response()->json([
             'success' => true,
